@@ -66,6 +66,7 @@ const AdminPage: React.FC = () => {
     features: [''],
     image_url: ''
   });
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -75,6 +76,7 @@ const AdminPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
+      setFetchError(null);
       await Promise.all([
         fetchRegistrations(),
         fetchCourses(),
@@ -82,6 +84,7 @@ const AdminPage: React.FC = () => {
         fetchAdminUsers()
       ]);
     } catch (error) {
+      setFetchError(error.message || 'Unknown error');
       console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
@@ -95,9 +98,13 @@ const AdminPage: React.FC = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        setFetchError(error.message);
+        throw error;
+      }
       setRegistrations(data || []);
     } catch (error) {
+      setFetchError(error.message || 'Error fetching registrations');
       console.error('Error fetching registrations:', error);
     }
   };
@@ -503,6 +510,11 @@ const AdminPage: React.FC = () => {
             </div>
           ) : (
             <>
+              {fetchError && (
+                <div style={{ color: 'red', margin: '16px 0' }}>
+                  <b>Ошибка Supabase:</b> {fetchError}
+                </div>
+              )}
               {/* Registrations Tab */}
               {activeTab === 'registrations' && (
                 <div className="overflow-x-auto">
