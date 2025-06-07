@@ -8,6 +8,7 @@ import SystemHealthCheck from '../components/SystemHealthCheck';
 import ImageUpload from '../components/ImageUpload';
 import { testEmailNotification } from '../lib/emailService';
 import { checkStorageConfiguration } from '../lib/storage';
+import LoginForm from '../components/LoginForm';
 
 interface Registration {
   id: string;
@@ -45,6 +46,9 @@ interface AdminUser {
 }
 
 const AdminPage: React.FC = () => {
+  const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
@@ -67,6 +71,33 @@ const AdminPage: React.FC = () => {
     image_url: ''
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    setUser(supabase.auth.session()?.user ?? null);
+    return () => {
+      authListener?.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      setCheckingAdmin(true);
+      supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', user.email)
+        .then(({ data, error }) => {
+          setIsAdmin(!!data && data.length > 0);
+          setCheckingAdmin(false);
+        });
+    } else {
+      setIsAdmin(false);
+      setCheckingAdmin(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     fetchData();
@@ -359,8 +390,25 @@ const AdminPage: React.FC = () => {
     return String(details);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setIsAdmin(false);
+  };
+
+  if (!user) {
+    return <LoginForm />;
+  }
+  if (checkingAdmin) {
+    return <div>Проверка прав администратора...</div>;
+  }
+  if (!isAdmin) {
+    return <div>Доступ запрещён</div>;
+  }
+
   return (
     <div className="pt-20 min-h-screen bg-gray-50">
+      <button onClick={handleLogout} className="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded">Выйти</button>
       <div className="container mx-auto px-4">
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
@@ -510,7 +558,7 @@ const AdminPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {fetchError && (
+              {fetchError && process.env.NODE_ENV === 'development' && (
                 <div style={{ color: 'red', margin: '16px 0' }}>
                   <b>Ошибка Supabase:</b> {fetchError}
                 </div>
